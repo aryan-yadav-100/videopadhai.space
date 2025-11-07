@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+.env.local
+
+# Build and distribution directories
+dist/
+build/
+coverage/
+
+# Python cache
+__pycache__/
+*.pyc
+venv/
+
+# Logs
+*.log
+firebase-debug.log*
+firebase-debug.*.log*
+
+# Miscellaneous
+.DS_Store

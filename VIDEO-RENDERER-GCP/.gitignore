@@ -1,0 +1,22 @@
+# Node dependencies
+node_modules/
+
+# Environment and secrets
+.env
+service-account.json
+service-key-account.json
+voiceover_env/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+
+# Builds
+dist/
+build/
+
+# Misc
+.DS_Store

@@ -1,0 +1,19 @@
+# Compiled output
+lib/**/*.js
+lib/**/*.js.map
+
+# TypeScript artifacts
+typings/
+
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+.env.local
+
+# Logs
+*.log
+
+# Misc
+.DS_Store
