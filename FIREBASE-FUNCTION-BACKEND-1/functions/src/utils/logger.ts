@@ -1,12 +1,14 @@
 import * as functions from 'firebase-functions';
+import { v4 as uuidv4 } from 'uuid';
 
-// logging interface
+// Logging interface
 interface LogContext {
   chatId?: string;
   userId?: string;
   operation?: string;
   step?: string;
   status?: 'processing' | 'completed' | 'failed' | 'success' | 'error';
+  traceId?: string; // NEW: For distributed tracing
 }
 
 // Performance tracking interface
@@ -27,23 +29,41 @@ interface ErrorDetails {
 
 class Logger {
   private readonly serviceName: string;
+  private readonly environment: string;
 
   constructor(serviceName: string = 'firebase-function') {
     this.serviceName = serviceName;
+    this.environment = process.env.NODE_ENV || 'development';
   }
 
   /**
-   * standardized log entry with common fields
+   * Generate a trace ID for request correlation
+   */
+  generateTraceId(): string {
+    return uuidv4();
+  }
+
+  /**
+   * Standardized log entry with common fields (Loki-friendly)
    */
   private createBaseLogEntry(context: LogContext, additionalData?: Record<string, any>) {
     return {
+      // Timestamp in ISO format
       timestamp: new Date().toISOString(),
+      
+      // Service identification (for Loki labels)
       service: this.serviceName,
+      environment: this.environment,
+      
+      // Trace and context fields
+      traceId: context.traceId || null,
       chatId: context.chatId || null,
       userId: context.userId || null,
       operation: context.operation || null,
       step: context.step || null,
       status: context.status || null,
+      
+      // Additional metadata
       ...additionalData
     };
   }
@@ -55,6 +75,7 @@ class Logger {
     const logEntry = this.createBaseLogEntry(context, {
       message,
       level: 'INFO',
+      severity: 'INFO', // For Cloud Logging compatibility
       ...metadata
     });
 
@@ -70,9 +91,11 @@ class Logger {
     const logEntry = this.createBaseLogEntry(context, {
       message,
       level: 'ERROR',
+      severity: 'ERROR',
       errorMessage: error?.message || 'Unknown error',
       errorStack: error?.stack || null,
       errorName: error?.name || null,
+      errorCode: error?.code || null, // For categorizing errors
       ...additionalData
     });
 
@@ -86,6 +109,7 @@ class Logger {
     const logEntry = this.createBaseLogEntry(context, {
       message,
       level: 'WARN',
+      severity: 'WARNING',
       ...metadata
     });
 
@@ -96,13 +120,16 @@ class Logger {
    * Log debug information (only in development)
    */
   logDebug(context: LogContext, message: string, metadata?: Record<string, any>): void {
-    const logEntry = this.createBaseLogEntry(context, {
-      message,
-      level: 'DEBUG',
-      ...metadata
-    });
+    if (this.environment !== 'production') {
+      const logEntry = this.createBaseLogEntry(context, {
+        message,
+        level: 'DEBUG',
+        severity: 'DEBUG',
+        ...metadata
+      });
 
-    functions.logger.debug(message, logEntry);
+      functions.logger.debug(message, logEntry);
+    }
   }
 
   /**
@@ -113,7 +140,8 @@ class Logger {
     userId: string, 
     workflowType: 1 | 2,
     step: string, 
-    status: 'processing' | 'completed' | 'failed'
+    status: 'processing' | 'completed' | 'failed',
+    traceId?: string
   ): void {
     this.logInfo(
       { 
@@ -121,7 +149,8 @@ class Logger {
         userId, 
         operation: `workflow_${workflowType}`,
         step,
-        status 
+        status,
+        traceId
       },
       `Workflow ${workflowType} - ${step}`,
       { 
@@ -144,9 +173,22 @@ class Logger {
         performanceMetrics: true,
         executionTimeMs,
         operation,
+        // Add latency buckets for Prometheus
+        latencyBucket: this.getLatencyBucket(executionTimeMs),
         ...additionalData
       }
     );
+  }
+
+  /**
+   * Helper to categorize latency for better metrics
+   */
+  private getLatencyBucket(ms: number): string {
+    if (ms < 100) return 'fast';
+    if (ms < 500) return 'medium';
+    if (ms < 1000) return 'slow';
+    if (ms < 5000) return 'very_slow';
+    return 'timeout_risk';
   }
 
   /**
@@ -154,7 +196,7 @@ class Logger {
    */
   logAuthEvent(
     userId: string | null, 
-    event: 'success' | 'failure' | 'invalid_key',
+    event: 'success' | 'failure' | 'invalid_origin',
     additionalInfo?: Record<string, any>
   ): void {
     const context: LogContext = {
@@ -166,9 +208,9 @@ class Logger {
     const message = `Auth ${event}${userId ? ` for user ${userId}` : ''}`;
 
     if (event === 'success') {
-      this.logInfo(context, message, { authEvent: true, ...additionalInfo });
+      this.logInfo(context, message, { authEvent: true, authResult: event, ...additionalInfo });
     } else {
-      this.logWarning(context, message, { authEvent: true, ...additionalInfo });
+      this.logWarning(context, message, { authEvent: true, authResult: event, ...additionalInfo });
     }
   }
 
@@ -193,15 +235,19 @@ class Logger {
     if (event === 'blocked') {
       this.logWarning(context, message, { 
         rateLimitEvent: true,
+        rateLimitStatus: event,
         currentCount,
         limit,
+        utilizationPercent: (currentCount / limit) * 100,
         ...additionalInfo 
       });
     } else {
       this.logInfo(context, message, { 
         rateLimitEvent: true,
+        rateLimitStatus: event,
         currentCount,
         limit,
+        utilizationPercent: (currentCount / limit) * 100,
         ...additionalInfo 
       });
     }
@@ -211,7 +257,7 @@ class Logger {
    * Log API calls to external services (GPT, etc.)
    */
   logExternalApiCall(
-    service: 'openai' | 'firestore',
+    service: 'openai' | 'firestore' | 'backend_2',
     operation: string,
     context: LogContext,
     result: 'success' | 'error',
@@ -222,7 +268,8 @@ class Logger {
     
     const logData = {
       externalApiCall: true,
-      service,
+      externalService: service,
+      apiOperation: operation,
       result,
       executionTimeMs: executionTimeMs || null,
       ...additionalData
@@ -241,7 +288,7 @@ class Logger {
   }
 
   /**
-   * Log HTTP request events
+   * Log HTTP request events (NEW: Enhanced for metrics)
    */
   logHttpRequest(
     method: string,
@@ -249,22 +296,26 @@ class Logger {
     status: number,
     userId?: string,
     executionTimeMs?: number,
+    traceId?: string,
     additionalData?: Record<string, any>
   ): void {
     const context: LogContext = {
       userId,
       operation: 'http_request',
-      status: status >= 200 && status < 300 ? 'success' : 'error'
+      status: status >= 200 && status < 300 ? 'success' : 'error',
+      traceId
     };
 
     const message = `${method} ${endpoint} - ${status}`;
 
     this.logInfo(context, message, {
       httpRequest: true,
-      method,
-      endpoint,
-      statusCode: status,
+      httpMethod: method,
+      httpEndpoint: endpoint,
+      httpStatusCode: status,
+      httpStatusClass: Math.floor(status / 100) + 'xx', // 2xx, 4xx, 5xx
       executionTimeMs: executionTimeMs || null,
+      latencyBucket: executionTimeMs ? this.getLatencyBucket(executionTimeMs) : null,
       ...additionalData
     });
   }
@@ -278,9 +329,30 @@ class Logger {
       message,
       { 
         startupEvent: true,
+        environment: this.environment,
         ...metadata 
       }
     );
+  }
+
+  /**
+   * NEW: Log validation failures
+   */
+  logValidationFailure(
+    context: LogContext,
+    validationType: string,
+    failedChecks: string[],
+    reasons: string[],
+    additionalData?: Record<string, any>
+  ): void {
+    this.logWarning(context, `Validation failed: ${validationType}`, {
+      validationEvent: true,
+      validationType,
+      failedChecks,
+      failureReasons: reasons,
+      failureCount: reasons.length,
+      ...additionalData
+    });
   }
 }
 

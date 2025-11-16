@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { logger } from "./logger.js";
+import { recordRateLimitEvent } from "./metrics.js";
 
 // Ensure only one app instance
 const app = getApps().length ? getApp() : initializeApp();
@@ -17,6 +18,13 @@ export const checkRateLimit = async (userId: string) => {
     const userCount = userDoc.exists ? userDoc.data()?.totalRequests || 0 : 0;
 
     if (userCount >= 2) {
+      // Record blocked event with metrics
+      recordRateLimitEvent('blocked', 'user', userCount, 2);
+      
+      logger.logRateLimit(userId, 'blocked', userCount, 2, {
+        reason: 'user_limit_exceeded'
+      });
+      
       return { allowed: false, reason: "user_limit_exceeded" };
     }
 
@@ -28,6 +36,13 @@ export const checkRateLimit = async (userId: string) => {
     const dailyCount = dailyData?.date === today ? dailyData.totalRequests || 0 : 0;
 
     if (dailyCount >= 10) {
+      // Record blocked event with metrics
+      recordRateLimitEvent('blocked', 'daily', dailyCount, 10);
+      
+      logger.logRateLimit(userId, 'blocked', dailyCount, 10, {
+        reason: 'daily_limit_exceeded'
+      });
+      
       return { allowed: false, reason: "daily_limit_exceeded" };
     }
 
@@ -38,12 +53,25 @@ export const checkRateLimit = async (userId: string) => {
       { merge: true }
     );
 
-    logger.logInfo(
-      { userId, operation: "rate_limit" },
-      `Request allowed - User: ${userCount + 1}/2, Daily: ${dailyCount + 1}/10`
+    // Record allowed events with metrics
+    recordRateLimitEvent('allowed', 'user', userCount + 1, 2);
+    recordRateLimitEvent('allowed', 'daily', dailyCount + 1, 10);
+
+    logger.logRateLimit(
+      userId,
+      'allowed',
+      userCount + 1,
+      2,
+      {
+        userCount: userCount + 1,
+        dailyCount: dailyCount + 1,
+        userLimit: 2,
+        dailyLimit: 10
+      }
     );
 
     return { allowed: true };
+    
   } catch (error) {
     logger.logError({
       error,
@@ -55,4 +83,3 @@ export const checkRateLimit = async (userId: string) => {
     return { allowed: true };
   }
 };
-  
