@@ -3,8 +3,6 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { doc, onSnapshot, db } from "../lib/firebase";
 import { useBackendIds } from "../lib/backendIdsContext";
-import GeneratingVideo from "../components/generating-video";
-
 export default function LoadingPage() {
   const { userId, chatId, setSignedUrl, quickPromptData } = useBackendIds();
   const router = useRouter();
@@ -43,14 +41,4 @@ export default function LoadingPage() {
 
   // Get prompt and language for display
   const displayPrompt = quickPromptData?.prompt || "Processing your request";
-  const displayLanguage = quickPromptData?.language || "english";
-
-  return (
-    <div className="">
-      {/* <div className="my-10 h-px w-full absolute inset-x-0 bg-neutral-300 dark:bg-neutral-700"></div> */}
-      <div className="">
-        <GeneratingVideo prompt={displayPrompt} language={displayLanguage} />
-      </div>
-    </div>
-  );
 }

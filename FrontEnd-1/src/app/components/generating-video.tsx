@@ -1,10 +1,4 @@
 import { motion } from 'framer-motion'; // Import your Loader from the ui folder
-
-interface LoadingPageProps {
-  prompt: string;
-  language: string;
-}
-
 export default function LoadingPage(){
   return (
     <div className="min-h-screen bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
