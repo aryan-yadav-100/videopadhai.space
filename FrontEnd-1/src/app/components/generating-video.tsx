@@ -5,7 +5,7 @@ interface LoadingPageProps {
   language: string;
 }
 
-export default function LoadingPage({ prompt, language }: LoadingPageProps) {
+export default function LoadingPage(){
   return (
     <div className="min-h-screen bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
       <motion.div
@@ -26,7 +26,7 @@ export default function LoadingPage({ prompt, language }: LoadingPageProps) {
 
             <div className="flex items-center justify-center gap-2 text-sm text-neutral-600 dark:text-neutral-400 font-mono">
               <span>Language:</span>
-              <span className="text-orange-500 font-semibold capitalize">{language}</span>
+              <span className="text-orange-500 font-semibold capitalize"></span>
             </div>
           </div>
 

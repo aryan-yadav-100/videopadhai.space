@@ -7,15 +7,6 @@ import Hero from "./components/hero";
 import Chat from "./components/chat";
 
 // Animation variants
-const itemVariants: Variants = {
-  initial: { opacity: 0, y: 30 },
-  animate: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.6, ease: [0.25, 0.25, 0, 1] }
-  }
-};
-
 const heroHiddenVariants: Variants = {
   visible: {
     opacity: 1,

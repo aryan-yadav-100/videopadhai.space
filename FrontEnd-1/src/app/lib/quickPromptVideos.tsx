@@ -1,5 +1,4 @@
 // app/lib/quickPromptVideos.ts
-
 export interface QuickPrompt {
   prompt: string;
   youtubeUrl: string;

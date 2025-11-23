@@ -16,7 +16,6 @@ interface BackendIdsContextType {
 export interface QuickPromptData {
   youtubeUrl: string;
   prompt: string;
-  language: string;
 }
 
 const BackendIdsContext = createContext<BackendIdsContextType | undefined>(undefined);

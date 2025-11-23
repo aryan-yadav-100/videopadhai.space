@@ -4,13 +4,6 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Send } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-
 import { validateTopic } from "../lib/validation/inputvalidation";
 import { useBackendIds } from "../lib/backendIdsContext";
 import { getQuickPromptVideo, quickPromptTexts } from "../lib/quickPromptVideos";
@@ -21,7 +14,7 @@ interface ChatProps {
 
 export const Chat = ({ onChatActivate }: ChatProps) => {
   const [message, setMessage] = useState("");
-  const [language, setLanguage] = useState<"english" | "hindi" | null>(null);
+  
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -51,12 +44,6 @@ export const Chat = ({ onChatActivate }: ChatProps) => {
       setError(firstError);
       return;
     }
-
-    if (!language) {
-      setError("Please select a Language");
-      return;
-    }
-
     setError(null);
     setLoading(true);
 
@@ -67,9 +54,8 @@ export const Chat = ({ onChatActivate }: ChatProps) => {
       // Handle quick prompt flow
       setQuickPromptData({
         youtubeUrl: quickPromptVideo,
-        prompt: message,
-        language: language,
-      });
+        prompt: message
+       });
       
       // Navigate to loading page with quick prompt flag
       router.push("/loading-page");
@@ -90,7 +76,7 @@ export const Chat = ({ onChatActivate }: ChatProps) => {
           },
           body: JSON.stringify({
             topic: result.data,
-            buttonanswers: [language],
+           
           }),
         }
       );

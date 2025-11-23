@@ -35,7 +35,9 @@ export default function Navbar({ isDarkMode, toggleDarkMode, toggleColorMode }: 
             </Link>
 
             <a
-              href="#youtube"
+              href="https://www.youtube.com/@VideoPadhaai"
+               target="_blank"
+              rel="noopener noreferrer"
               className="text-xs sm:text-sm md:text-base text-neutral-700 dark:text-neutral-300 hover:text-orange-500 dark:hover:text-orange-400 transition-colors font-mono"
             >
               YouTube
@@ -67,7 +69,7 @@ export default function Navbar({ isDarkMode, toggleDarkMode, toggleColorMode }: 
             {/* GitHub link */}
             <motion.a
               whileTap={{ scale: 0.9 }}
-              href="https://github.com"
+              href="https://github.com/aryan-yadav-100/videopadhai.space"
               target="_blank"
               rel="noopener noreferrer"
               className="p-1.5 sm:p-2 rounded-lg bg-neutral-400 dark:bg-neutral-800 hover:bg-neutral-900 dark:hover:bg-neutral-700 transition-colors"
@@ -76,15 +78,7 @@ export default function Navbar({ isDarkMode, toggleDarkMode, toggleColorMode }: 
               <Github className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </motion.a>
 
-            {/* Color mode toggle - hidden on mobile */}
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={toggleColorMode}
-              className="hidden md:inline-flex p-1.5 sm:p-2 rounded-lg bg-neutral-400 dark:bg-neutral-800 hover:bg-orange-600 transition-colors cursor-pointer"
-              aria-label="Toggle color mode"
-            >
-              <Palette className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-            </motion.button>
+            
           </div>
         </div>
       </div>
