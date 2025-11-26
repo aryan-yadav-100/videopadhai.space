@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'; // Import your Loader from the ui folder
-export default function LoadingPage(){
+export default function loadingcss() {
   return (
-    <div className="min-h-screen bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
+    <div className="min-h-screen bg-white dark:bg-neutral-900 flex items-center justify-center">
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -19,7 +19,6 @@ export default function LoadingPage(){
           <div className="space-y-4">
 
             <div className="flex items-center justify-center gap-2 text-sm text-neutral-600 dark:text-neutral-400 font-mono">
-              <span>Language:</span>
               <span className="text-orange-500 font-semibold capitalize"></span>
             </div>
           </div>

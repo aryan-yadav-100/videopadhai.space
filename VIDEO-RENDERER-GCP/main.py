@@ -52,12 +52,13 @@ app = FastAPI()
 class RenderRequest(BaseModel):
     userId: str
     chatId: str
+    traceId:str
 
 class RenderResponse(BaseModel):
     success: bool
     message: str
 
-@app.post("/PLACEHOLDER_ENDPOINT_PATH")
+@app.post("/render")
 async def render_video(request: RenderRequest):
     try:
         logger.info(f"Received render request for userId: {request.userId}, chatId: {request.chatId}")

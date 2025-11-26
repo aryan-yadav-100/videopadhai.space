@@ -67,12 +67,12 @@ export const Chat = ({ onChatActivate }: ChatProps) => {
     // Regular backend flow
     try {
       const response = await fetch(
-        "https://your-project-id.cloudfunctions.net/processWorkflow1HTTP",
+        "https://us-central1-animation-padhaai-88646.cloudfunctions.net/processWorkflow1HTTP",
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Origin: "https://yourwebsite.com",
+            Origin: "https://www.videopadhai.space/",
           },
           body: JSON.stringify({
             topic: result.data,
