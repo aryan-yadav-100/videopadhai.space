@@ -2,7 +2,9 @@ import { logger } from '../utils/logger.js';
 import { recordExternalApiCall } from '../utils/metrics.js';
 
 // You'll need to replace this with your actual Python backend URL
-const BACKEND_2_URL = process.env.BACKEND_2_URL || 'https://your-python-backend-url.com/api/endpoint';
+const BACKEND_2_URL = process.env.BACKEND_2_URL ;
+if (!BACKEND_2_URL) {
+  throw new Error('BACKEND_2_URL environment variable is not set');}
 
 interface BackendPayload {
   userId: string;
