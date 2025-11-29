@@ -63,14 +63,14 @@ async def render_video(request: RenderRequest):
     try:
         logger.info(f"Received render request for userId: {request.userId}, chatId: {request.chatId}")
         
-        # Start background task (fire-and-forget)
-        asyncio.create_task(webhook_handler.process_render_request(request.userId, request.chatId))
+        # Wait for rendering to complete (not fire-and-forget)
+        await webhook_handler.process_render_request(request.userId, request.chatId)
         
-        return {"success": True, "message": "Render started"}
+        return {"success": True, "message": "Render completed successfully"}
         
     except Exception as e:
         logger.error(f"Error: {str(e)}")
-        return {"success": False, "message": "Rendering failed"}
+        return {"success": False, "message": f"Rendering failed: {str(e)}"}
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))
