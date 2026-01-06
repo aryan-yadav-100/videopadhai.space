@@ -17,11 +17,7 @@
     "lucide-react": "^0.541.0",
     "next": "15.5.0",
     "postcss": "^8.5.6",
-<<<<<<< HEAD
     "react": "19.1.0",
-=======
-    "react": "^19.1.0",
->>>>>>> 9be87b2 (feat: add AI API requests and update context IDs across backend and frontend)
     "react-dom": "19.1.0",
     "tailwind-merge": "^3.3.1",
     "zod": "^4.1.5"
