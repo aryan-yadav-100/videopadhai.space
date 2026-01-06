@@ -1,0 +1,60 @@
+# compose.yaml - Updated for Manim Rendering Service
+version: '3.8'
+
+services:
+  # Renamed from 'server' to 'manim-service' for clarity
+  manim-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    
+    # CRITICAL: Add environment variables for Docker mode
+    environment:
+      - ENVIRONMENT=docker
+      - USE_VENV=false
+      - PORT=8000
+      
+      # Firebase configuration - YOU MUST SET THESE
+      - FIREBASE_SERVICE_ACCOUNT_PATH=/service-key-account.json  # CHANGE THIS
+      - FIREBASE_STORAGE_BUCKET=ai-edu-64e41.firebasestorage.app  # CHANGE THIS
+      
+    # CRITICAL: Mount Firebase service account key
+    volumes:
+      # Mount your Firebase service account file
+      - ./service-key-account.json:/service-key-account.json
+      
+      
+    # CRITICAL: Resource limits for Manim rendering
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+    
+    # CRITICAL: Add health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    # Better restart policy
+    restart: unless-stopped
+    
+    # Configure logging
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Optional: Add networks for better isolation
+networks:
+  default:
+    name: manim-network
