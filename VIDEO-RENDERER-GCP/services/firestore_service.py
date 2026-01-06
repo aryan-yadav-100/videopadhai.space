@@ -1,6 +1,10 @@
 # services/firestore_service.py
 # ===============================
+<<<<<<< HEAD
 # UPDATED FOR HTTP WITH userId/chatId CONSISTENCY
+=======
+# UPDATED FOR DIRECT chatId USAGE (NO _workflow2 SUFFIX)
+>>>>>>> 9be87b2 (feat: add AI API requests and update context IDs across backend and frontend)
 # ===============================
 import logging
 from typing import Optional
@@ -16,6 +20,7 @@ class FirestoreService:
     async def get_manim_code(self, userId: str, chatId: str) -> Optional[str]:
         """
         Retrieve Manim code from Firestore using userId and chatId
+<<<<<<< HEAD
         Structure: finalAnswers/{chatId}_workflow2 -> { answer: "manim_code_here", ownerId: userId }
         """
         try:
@@ -23,6 +28,13 @@ class FirestoreService:
             workflow2_chat_id = f"{chatId}_workflow2"
             
             doc_ref = self.db.collection('finalAnswers').document(workflow2_chat_id)
+=======
+        Structure: finalAnswers/{chatId} -> { answer: "manim_code_here", ownerId: userId }
+        """
+        try:
+            # Fetch directly using chatId (no _workflow2 suffix)
+            doc_ref = self.db.collection('finalAnswers').document(chatId)
+>>>>>>> 9be87b2 (feat: add AI API requests and update context IDs across backend and frontend)
             doc = doc_ref.get()
                         
             if doc.exists:
@@ -39,10 +51,17 @@ class FirestoreService:
                     logger.info(f"Successfully retrieved Manim code for user {userId}, chatId {chatId}")
                     return manim_code
                 else:
+<<<<<<< HEAD
                     logger.error(f"No 'answer' field found in document for chatId: {workflow2_chat_id}")
                     return None
             else:
                 logger.error(f"No document found for workflow2_chat_id: {workflow2_chat_id}")
+=======
+                    logger.error(f"No 'answer' field found in document for chatId: {chatId}")
+                    return None
+            else:
+                logger.error(f"No document found for chatId: {chatId}")
+>>>>>>> 9be87b2 (feat: add AI API requests and update context IDs across backend and frontend)
                 return None
                         
         except Exception as e:
@@ -58,16 +77,27 @@ class FirestoreService:
     ):
         """
         Update the render status in Firestore
+<<<<<<< HEAD
         Updates the original workflow2 document
         """
         try:
             workflow2_chat_id = f"{chatId}_workflow2"
             doc_ref = self.db.collection('finalAnswers').document(workflow2_chat_id)
+=======
+        Updates the document directly using chatId
+        """
+        try:
+            doc_ref = self.db.collection('finalAnswers').document(chatId)
+>>>>>>> 9be87b2 (feat: add AI API requests and update context IDs across backend and frontend)
             
             # Verify document exists and belongs to user before updating
             doc = doc_ref.get()
             if not doc.exists:
+<<<<<<< HEAD
                 logger.error(f"Cannot update status: Document {workflow2_chat_id} not found")
+=======
+                logger.error(f"Cannot update status: Document {chatId} not found")
+>>>>>>> 9be87b2 (feat: add AI API requests and update context IDs across backend and frontend)
                 return
                 
             data = doc.to_dict()
@@ -96,13 +126,21 @@ class FirestoreService:
         Mark render as complete with video URL
         """
         try:
+<<<<<<< HEAD
             workflow2_chat_id = f"{chatId}_workflow2"
             doc_ref = self.db.collection('finalAnswers').document(workflow2_chat_id)
+=======
+            doc_ref = self.db.collection('finalAnswers').document(chatId)
+>>>>>>> 9be87b2 (feat: add AI API requests and update context IDs across backend and frontend)
             
             # Verify document exists and belongs to user before updating
             doc = doc_ref.get()
             if not doc.exists:
+<<<<<<< HEAD
                 logger.error(f"Cannot complete render: Document {workflow2_chat_id} not found")
+=======
+                logger.error(f"Cannot complete render: Document {chatId} not found")
+>>>>>>> 9be87b2 (feat: add AI API requests and update context IDs across backend and frontend)
                 return
                 
             data = doc.to_dict()

@@ -4,7 +4,11 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { logger } from './logger.js';
+<<<<<<< HEAD
 import { recordHttpRequest, pushMetricsToGateway } from './metrics.js';
+=======
+import { recordHttpRequest } from './metrics.js';
+>>>>>>> 9be87b2 (feat: add AI API requests and update context IDs across backend and frontend)
 
 /**
  * Monitoring middleware - tracks all HTTP requests
@@ -87,6 +91,7 @@ export const monitoringMiddleware = async (
       }
     );
     
+<<<<<<< HEAD
     // Push metrics to gateway (fire and forget)
     pushMetricsToGateway().catch(err => {
       // Silently fail - don't impact the response
@@ -97,6 +102,8 @@ export const monitoringMiddleware = async (
       );
     });
     
+=======
+>>>>>>> 9be87b2 (feat: add AI API requests and update context IDs across backend and frontend)
     // Send the actual response
     return originalJson(body);
   };

@@ -14,7 +14,13 @@
     "noEmitOnError": false
   },
   "compileOnSave": true,
+<<<<<<< HEAD
   "include": [
     "src"
   ]
+=======
+  "include":  ["src"],
+  "exclude": ["src/monitoring"],
+  "scripts": {"build": "tsc"}  
+>>>>>>> 9be87b2 (feat: add AI API requests and update context IDs across backend and frontend)
 }

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 export let prompt1 : string = `ROLE & PURPOSE You are a Manim animation script prompt generator. Your single purpose is to produce a natural language, scene-by-scene script describing exactly how a Manim video should visually teach a given topic. Do NOT generate any Manim code. Your output will be turned into code by another person or system.
 ✅ OUTPUT FORMAT & PRIORITIES (IN ORDER OF IMPORTANCE)
 1️⃣ 📚 Technical Precision & Definitional Language
@@ -578,3 +579,8 @@ Only Manim-native primitives (no external media)
 Clean, modular, and well-structured animation flow
   ask "provide your script "   `
   
+=======
+export let systemMessage : string =``
+
+export let userprompt : string = ``
+>>>>>>> 9be87b2 (feat: add AI API requests and update context IDs across backend and frontend)

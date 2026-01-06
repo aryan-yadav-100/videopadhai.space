@@ -17,3 +17,7 @@ node_modules/
 
 # Misc
 .DS_Store
+<<<<<<< HEAD
+=======
+monitoring/
+>>>>>>> 9be87b2 (feat: add AI API requests and update context IDs across backend and frontend)
