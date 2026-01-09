@@ -4,11 +4,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { logger } from './logger.js';
-<<<<<<< HEAD
-import { recordHttpRequest, pushMetricsToGateway } from './metrics.js';
-=======
-import { recordHttpRequest } from './metrics.js';
->>>>>>> 9be87b2 (feat: add AI API requests and update context IDs across backend and frontend)
+import { recordHttpRequest, recordError } from './metrics.js';
 
 /**
  * Monitoring middleware - tracks all HTTP requests
@@ -91,19 +87,6 @@ export const monitoringMiddleware = async (
       }
     );
     
-<<<<<<< HEAD
-    // Push metrics to gateway (fire and forget)
-    pushMetricsToGateway().catch(err => {
-      // Silently fail - don't impact the response
-      logger.logDebug(
-        { operation: 'metrics_push', traceId },
-        'Metrics push failed',
-        { error: err.message }
-      );
-    });
-    
-=======
->>>>>>> 9be87b2 (feat: add AI API requests and update context IDs across backend and frontend)
     // Send the actual response
     return originalJson(body);
   };
@@ -139,7 +122,6 @@ export const errorHandlingMiddleware = (
   });
 
   // Record error metric
-  const { recordError } = require('./metrics.js');
   recordError(err.name || 'UnknownError', 'http_request');
 
   // Send error response

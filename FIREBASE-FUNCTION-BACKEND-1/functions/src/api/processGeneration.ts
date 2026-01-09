@@ -3,18 +3,169 @@ import { validateRequest } from '../utils/auth.js';
 import { validateTopic } from '../utils/input-validation.js';
 import { checkRateLimit } from '../utils/rateLimiter.js';
 import { logger } from '../utils/logger.js';
-import { sendToLLM } from '../services/chatgpt_ai.js'; // Your new LLM service
+import { sendToLLM } from '../services/chatgpt_ai.js';
 import { saveFinalAnswer, saveGenerationMetadata } from '../services/firestoreService.js';
 import { sendToBackend2 } from '../services/httpsservice.js';
 import { PerformanceTimer } from '../utils/middleware.js';
 import { recordValidationFailure, recordError, recordExternalApiCall } from '../utils/metrics.js';
 
 /**
- * HTTP endpoint handler - Now handles single generation workflow
+ * ASYNC BACKGROUND PROCESSING
+ * This runs after the response is sent to the frontend
+ */
+const processGenerationAsync = async (
+  userId: string,
+  chatId: string,
+  topic: string,
+  traceId: string
+) => {
+  try {
+    // ============ SAVE INITIAL STATE ============
+    await saveGenerationMetadata(chatId, userId, {
+      topic,
+      status: 'processing'
+    });
+
+    logger.logInfo(
+      { userId, chatId, operation: 'async_processing_started', traceId },
+      'Background processing started'
+    );
+
+    // ============ GENERATE CODE ============
+    logger.logInfo(
+      { userId, chatId, operation: 'code_generation', traceId },
+      'Starting code generation',
+      { topicLength: topic.length }
+    );
+    
+    const generationTimer = new PerformanceTimer('llm_generation', traceId);
+    
+    let generatedCode: string;
+    try {
+      generatedCode = await sendToLLM(topic);
+      
+      const generationDuration = generationTimer.end({ status: 'success' });
+      
+      recordExternalApiCall('openai', 'generate_code', 'success', generationDuration / 1000);
+      
+      logger.logExternalApiCall(
+        'openai',
+        'generate_code',
+        { chatId, userId, operation: 'code_generation', traceId },
+        'success',
+        generationDuration,
+        { 
+          topicLength: topic.length,
+          codeLength: generatedCode.length 
+        }
+      );
+      
+    } catch (llmError) {
+      const generationDuration = generationTimer.end({ status: 'error' });
+      
+      recordExternalApiCall('openai', 'generate_code', 'error', generationDuration / 1000);
+      
+      logger.logError({
+        error: llmError,
+        context: { chatId, userId, operation: 'code_generation', traceId },
+        message: 'Code generation failed'
+      });
+      
+      await saveGenerationMetadata(chatId, userId, {
+        topic,
+        status: 'failed',
+        error: llmError instanceof Error ? llmError.message : 'Unknown error'
+      });
+      
+      // Don't throw - just log and return
+      return;
+    }
+
+    // ============ SAVE GENERATED CODE ============
+    logger.logInfo(
+      { userId, chatId, operation: 'save_result', traceId },
+      'Saving generated code'
+    );
+    
+    await saveFinalAnswer(chatId, userId, generatedCode);
+    await saveGenerationMetadata(chatId, userId, {
+      topic,
+      status: 'completed',
+      generatedCode
+    });
+
+    // ============ NOTIFY BACKEND 2 ============
+    logger.logInfo(
+      { chatId, userId, operation: 'backend_2_request', traceId },
+      'Code generation completed, sending HTTP request to Backend 2'
+    );
+
+    try {
+      await sendToBackend2(userId, chatId, traceId);
+      
+      logger.logInfo(
+        { chatId, userId, operation: 'backend_2_request', status: 'success', traceId },
+        'HTTP request to Backend 2 successful'
+      );
+
+    } catch (httpError) {
+      recordExternalApiCall('backend_2', 'post_generation_complete', 'error');
+      
+      logger.logError({
+        error: httpError,
+        context: { chatId, userId, operation: 'backend_2_request', traceId },
+        message: 'Failed to send HTTP request to Backend 2, but generation completed successfully'
+      });
+    }
+
+    logger.logInfo(
+      { userId, chatId, operation: 'async_processing_complete', status: 'success', traceId },
+      'Background processing completed successfully'
+    );
+
+  } catch (error) {
+    // Catch any unexpected errors in async processing
+    recordError(
+      error instanceof Error ? error.name : 'UnknownError',
+      'async_processing'
+    );
+    
+    logger.logError({
+      error,
+      context: { 
+        userId,
+        chatId,
+        operation: 'async_processing',
+        status: 'error',
+        traceId 
+      },
+      message: 'Async processing failed unexpectedly'
+    });
+
+    // Try to update Firestore with error state
+    try {
+      await saveGenerationMetadata(chatId, userId, {
+        topic: 'Processing failed',
+        status: 'failed',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } catch (saveError) {
+      logger.logError({
+        error: saveError,
+        context: { userId, chatId, operation: 'save_error_state', traceId },
+        message: 'Failed to save error state to Firestore'
+      });
+    }
+  }
+};
+
+/**
+ * HTTP ENDPOINT HANDLER - NOW WITH IMMEDIATE RESPONSE
+ * Validates request, returns IDs immediately, then processes in background
  */
 export const processWorkflow1 = async (req: Request, res: Response) => {
   const traceId = (req as any).traceId || logger.generateTraceId();
-  const requestTimer = new PerformanceTimer('processGeneration', traceId);
+  const requestTimer = new PerformanceTimer('processGeneration_sync', traceId);
   
   try {
     // ============ AUTH CHECK ============
@@ -73,7 +224,7 @@ export const processWorkflow1 = async (req: Request, res: Response) => {
       logger.logValidationFailure(
         { userId, chatId, operation: 'validation', traceId },
         'topic',
-         [],
+        [],
         validation.reasons
       );
       
@@ -100,105 +251,12 @@ export const processWorkflow1 = async (req: Request, res: Response) => {
       return;
     }
 
-    // ============ SAVE INITIAL STATE ============
-    await saveGenerationMetadata(chatId, userId, {
-      topic,
-      status: 'processing'
-    });
-
-    // ============ GENERATE CODE ============
-    logger.logInfo(
-      { userId, chatId, operation: 'code_generation', traceId },
-      'Starting code generation',
-      { topicLength: topic.length }
-    );
-    
-    const generationTimer = new PerformanceTimer('llm_generation', traceId);
-    
-    let generatedCode: string;
-    try {
-      generatedCode = await sendToLLM(topic);
-      
-      const generationDuration = generationTimer.end({ status: 'success' });
-      
-      recordExternalApiCall('openai', 'generate_code', 'success', generationDuration / 1000);
-      
-      logger.logExternalApiCall(
-        'openai',
-        'generate_code',
-        { chatId, userId, operation: 'code_generation', traceId },
-        'success',
-        generationDuration,
-        { 
-          topicLength: topic.length,
-          codeLength: generatedCode.length 
-        }
-      );
-      
-    } catch (llmError) {
-      const generationDuration = generationTimer.end({ status: 'error' });
-      
-      recordExternalApiCall('openai', 'generate_code', 'error', generationDuration / 1000);
-      
-      logger.logError({
-        error: llmError,
-        context: { chatId, userId, operation: 'code_generation', traceId },
-        message: 'Code generation failed'
-      });
-      
-      await saveGenerationMetadata(chatId, userId, {
-        topic,
-        status: 'failed',
-        error: llmError instanceof Error ? llmError.message : 'Unknown error'
-      });
-      
-      throw llmError;
-    }
-
-    // ============ SAVE GENERATED CODE ============
-    logger.logInfo(
-      { userId, chatId, operation: 'save_result', traceId },
-      'Saving generated code'
-    );
-    
-    await saveFinalAnswer(chatId, userId, generatedCode);
-    await saveGenerationMetadata(chatId, userId, {
-      topic,
-      status: 'completed',
-      generatedCode
-    });
-
-    // ============ NOTIFY BACKEND 2 ============
-    logger.logInfo(
-      { chatId, userId, operation: 'backend_2_request', traceId },
-      'Code generation completed, sending HTTP request to Backend 2'
-    );
-
-    try {
-      await sendToBackend2(userId, chatId, traceId);
-      
-      logger.logInfo(
-        { chatId, userId, operation: 'backend_2_request', status: 'success', traceId },
-        'HTTP request to Backend 2 successful'
-      );
-
-    } catch (httpError) {
-      recordExternalApiCall('backend_2', 'post_generation_complete', 'error');
-      
-      logger.logError({
-        error: httpError,
-        context: { chatId, userId, operation: 'backend_2_request', traceId },
-        message: 'Failed to send HTTP request to Backend 2, but generation completed successfully'
-      });
-      // Don't throw - generation was successful
-    }
-
-    // ============ SUCCESS RESPONSE ============
-    const totalDuration = requestTimer.end({ status: 'success' });
+    // ============ ✅ SEND IMMEDIATE RESPONSE TO FRONTEND ============
+    const syncDuration = requestTimer.end({ status: 'success' });
     
     logger.logInfo(
-      { userId, chatId, operation: 'generation_complete', status: 'success', traceId },
-      `Generation completed successfully in ${totalDuration}ms`
+      { userId, chatId, operation: 'request_accepted', status: 'success', traceId },
+      `Request validated and accepted in ${syncDuration}ms, processing will continue in background`
     );
 
     res.json({
@@ -206,10 +264,24 @@ export const processWorkflow1 = async (req: Request, res: Response) => {
       userId,
       chatId,
       traceId,
+      message: 'Request accepted, processing in background',
       metrics: {
-        totalDurationMs: totalDuration,
+        validationDurationMs: syncDuration,
       }
     });
+
+    // ============ 🔥 START ASYNC PROCESSING (DON'T AWAIT) ============
+    // This runs in the background after response is sent
+    processGenerationAsync(userId, chatId, topic, traceId).catch(error => {
+      // This catch is just for safety - errors are handled inside processGenerationAsync
+      logger.logError({
+        error,
+        context: { userId, chatId, operation: 'async_processing_wrapper', traceId },
+        message: 'Unhandled error in async processing wrapper'
+      });
+    });
+
+    // Response already sent, function continues but doesn't block
 
   } catch (error) {
     const totalDuration = requestTimer.end({ status: 'error' });
@@ -217,7 +289,7 @@ export const processWorkflow1 = async (req: Request, res: Response) => {
     // Record error metric
     recordError(
       error instanceof Error ? error.name : 'UnknownError',
-      'processGeneration'
+      'processGeneration_sync'
     );
     
     logger.logError({
@@ -227,7 +299,7 @@ export const processWorkflow1 = async (req: Request, res: Response) => {
         status: 'error',
         traceId 
       },
-      message: 'API request failed',
+      message: 'API request failed during validation phase',
       additionalData: {
         totalDurationMs: totalDuration,
       }

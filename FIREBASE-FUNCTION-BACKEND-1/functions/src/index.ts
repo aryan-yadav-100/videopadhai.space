@@ -1,23 +1,10 @@
-<<<<<<< HEAD
-import * as functions from "firebase-functions";
-import { initializeApp } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
-import { processWorkflow1 } from "./api/processWorlflow1.js";
-import { logger } from "./utils/logger.js";
-import { monitoringMiddleware, errorHandlingMiddleware } from "./utils/middleware.js";
-import express from "express";
-
-// Initialize Firebase Admin using the ESM API
-const app = initializeApp();
-const db = getFirestore(app);
-=======
 import { onRequest } from "firebase-functions/v2/https";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import express from "express";
+import cors from "cors";
 
 import { processWorkflow1 } from "./api/processGeneration.js";
-import { logger } from "./utils/logger.js";
 import {
   monitoringMiddleware,
   errorHandlingMiddleware,
@@ -26,26 +13,36 @@ import {
 // Initialize Firebase Admin
 initializeApp();
 export const db = getFirestore();
->>>>>>> 9be87b2 (feat: add AI API requests and update context IDs across backend and frontend)
 
 // Log startup
-logger.logStartup("Firebase Function initialized successfully");
+console.log("Firebase Function initialized");
 
-<<<<<<< HEAD
-// Export db if needed by other modules
-export { db };
-const expressApp = express();
-expressApp.use(express.json());
-expressApp.use(monitoringMiddleware);
-expressApp.post("/", processWorkflow1);
-expressApp.use(errorHandlingMiddleware);
-/**
- * HTTP endpoint for Workflow 1 - processes both workflows automatically
- */
-export const processWorkflow1HTTP = functions.https.onRequest(processWorkflow1);
-=======
 // Create Express app
 const app = express();
+
+// ✅ CORS Configuration
+const ALLOWED_ORIGINS = [
+  'http://localhost:4000',
+  'http://localhost:4001',
+  'https://videopadhai-space-git-main-aryan10os-projects.vercel.app',
+  'https://videopadhai-space-4og6l522h-aryan10os-projects.vercel.app',
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like Postman or server-to-server)
+    if (!origin) return callback(null, true);
+    
+    if (ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 app.use(express.json());
 app.use(monitoringMiddleware);
@@ -59,8 +56,8 @@ app.use(errorHandlingMiddleware);
 // ✅ EXPORT EXPRESS APP
 export const processWorkflow1HTTP = onRequest(
   {
-    secrets: ["OPENROUTER_API_KEY","BACKEND_2_URL"],
+    secrets: ["OPENROUTER_API_KEY", "BACKEND_2_URL"],
+    cors: true
   },
   app
 );
->>>>>>> 9be87b2 (feat: add AI API requests and update context IDs across backend and frontend)

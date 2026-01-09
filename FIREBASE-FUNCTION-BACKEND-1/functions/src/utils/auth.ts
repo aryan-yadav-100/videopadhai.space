@@ -6,8 +6,9 @@ import { logger } from '../utils/logger.js';
 const ALLOWED_ORIGINS = [
   'http://localhost:4000',
   'http://localhost:4001',
-  'https://yourwebsite.com',      // Replace with your actual domain
-  'https://www.yourwebsite.com'
+  'videopadhai-space-git-main-aryan10os-projects.vercel.app',      // Replace with your actual domain
+  'videopadhai-space-4og6l522h-aryan10os-projects.vercel.app',
+  'https://www.videopadhai.space/'
 ];
 
 /**

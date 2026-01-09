@@ -4,7 +4,7 @@ import RE2 from "re2";
 import createDOMPurify, { type DOMPurify, type WindowLike } from "dompurify";
 import { JSDOM } from "jsdom";
 
-// Lazily initialize DOMPurify for Node (avoids cold-start issues)
+// Lazily initialize DOMPurify for Node
 let DOMPurifyInstance: DOMPurify;
 
 function getDOMPurify() {
@@ -20,26 +20,35 @@ import { checkProfanity } from "glin-profanity";
 import type { ProfanityCheckerConfig } from "glin-profanity";
 import sanitizeHtml from "sanitize-html";
 
-// ---------------- Disallowed Symbols Regex ----------------
+// ============ ALIGNED VALIDATION RULES ============
+// These match the frontend validation exactly
+const ALLOWED_CHARS = /^[a-z0-9 ?]*$/i; // Letters, numbers, spaces, and ?
+const MIN_LENGTH = 1;
+const MAX_LENGTH = 50;
+
+// Additional backend-only security checks
 const DISALLOWED_SYMBOLS = /[<>{}\[\]\(\)\*\/\"':;#@!$%^&]/;
 
-// ---------------- Schema ----------------
+// ============ SCHEMAS ============
+const TopicSchema = z
+  .string()
+  .min(MIN_LENGTH, "Input cannot be empty")
+  .max(MAX_LENGTH, "Max 50 characters allowed")
+  .regex(ALLOWED_CHARS, "Only letters, numbers, spaces, and ? are allowed")
+  .refine((val) => !DISALLOWED_SYMBOLS.test(val), {
+    message: "Text contains disallowed special symbols.",
+  });
+
 const InputSchema = z
   .object({
-    text: z
-      .string()
-      .min(1)
-      .max(10_000)
-      .refine((val) => !DISALLOWED_SYMBOLS.test(val), {
-        message: "Text contains disallowed special symbols.",
-      }),
+    text: z.string().min(1).max(10_000),
     allowHtml: z.boolean().optional().default(false),
   })
   .strict();
 
 type Input = z.infer<typeof InputSchema>;
 
-// ---------------- Injection Patterns ----------------
+// ============ INJECTION PATTERNS ============
 const INJECTION_PATTERNS: RE2[] = [
   new RE2("\\b(UNION|SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|EXEC|MERGE)\\b", "i"),
   new RE2("(--|;\\s*--|/\\*|\\*/|;\\s*SHUTDOWN)", "i"),
@@ -50,7 +59,7 @@ const INJECTION_PATTERNS: RE2[] = [
 
 const URL_HINT = new RE2("(https?:\\/\\/|www\\.)", "i");
 
-// ---------------- Helpers ----------------
+// ============ HELPERS ============
 function containsUrl(s: string): boolean {
   if (!URL_HINT.test(s)) return false;
   for (const raw of s.split(/\s+/)) {
@@ -107,7 +116,7 @@ function sanitizeIfHtml(
   return { clean: tightened, hadHtml: true, mutated: tightened !== input };
 }
 
-// ---------------- Core Validator ----------------
+// ============ CORE VALIDATOR (For general input) ============
 async function validateSingle(body: unknown) {
   const reasons: string[] = [];
   const failedChecks: string[] = [];
@@ -161,21 +170,77 @@ async function validateSingle(body: unknown) {
   };
 }
 
-// ---------------- Simple Topic Validator ----------------
+// ============ TOPIC VALIDATOR (Simplified for chat topics) ============
 export const validateTopic = async (topic: string) => {
+  const reasons: string[] = [];
+  
   try {
-    const result = await validateSingle({ text: topic, allowHtml: false });
+    // Normalize input
+    const normalized = topic.trim().toLowerCase();
+    
+    // Step 1: Basic format validation (aligned with frontend)
+    const basicValidation = TopicSchema.safeParse(normalized);
+    if (!basicValidation.success) {
+      basicValidation.error.issues.forEach((issue) => {
+        reasons.push(issue.message);
+      });
+      return {
+        valid: false,
+        reasons,
+        cleanedTopic: normalized,
+      };
+    }
+
+    // Step 2: Security checks (backend only)
+    
+    // Check for URLs
+    if (containsUrl(normalized)) {
+      reasons.push("URLs are not allowed.");
+    }
+
+    // Check for injection patterns
+    for (const re of INJECTION_PATTERNS) {
+      if (re.test(normalized)) {
+        reasons.push("Injection/XSS pattern detected.");
+        break;
+      }
+    }
+
+    // Check for profanity
+    if (hasProfanity(normalized)) {
+      reasons.push("Profanity detected.");
+    }
+
+    // Language check disabled for better UX with short prompts
+    // You can re-enable this if needed for your use case
+    // if (!(await isEnglish(normalized))) {
+    //   reasons.push("Only English text is allowed.");
+    // }
+
+    // Check for HTML
+    const { hadHtml } = sanitizeIfHtml(normalized, false);
+    if (hadHtml) {
+      reasons.push("HTML is not allowed.");
+    }
 
     return {
-      valid: result.valid,
-      reasons: result.reasons || [],
-      cleanedTopic: result.cleanedText || topic,
+      valid: reasons.length === 0,
+      reasons,
+      cleanedTopic: normalized,
     };
-  } catch {
+  } catch (error) {
+    console.error("Validation error:", error);
     return {
       valid: false,
       reasons: ["Validation error occurred"],
       cleanedTopic: topic,
     };
   }
+};
+
+// Export constants for consistency
+export const VALIDATION_RULES = {
+  MIN_LENGTH,
+  MAX_LENGTH,
+  ALLOWED_CHARS,
 };

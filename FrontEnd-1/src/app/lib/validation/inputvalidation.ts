@@ -1,21 +1,23 @@
 import { z } from "zod";
-import {Filter} from "bad-words";
+import { Filter } from "bad-words";
 
 const profanity = new Filter();
 
-// Whitelist regex: only a-z, 0-9, and space
-const WHITELIST = /^[a-z0-9  ?]*$/;
+// Aligned validation rules with backend
+const ALLOWED_CHARS = /^[a-z0-9 ?]*$/i; // Letters, numbers, spaces, and ?
+const MIN_LENGTH = 1;
+const MAX_LENGTH = 50;
 
 export function validateTopic(rawInput: string) {
-  // Normalize to lowercase
-  const input = rawInput.toLowerCase();
+  // Normalize to lowercase for consistency
+  const input = rawInput.toLowerCase().trim();
 
-  // Zod schema
+  // Zod schema matching backend rules
   const schema = z
     .string()
-    .min(1, "Input cannot be empty")
-    .max(50, "Max 50 characters allowed")
-    .regex(WHITELIST, "Only letters, numbers, and spaces allowed")
+    .min(MIN_LENGTH, "Input cannot be empty")
+    .max(MAX_LENGTH, "Max 50 characters allowed")
+    .regex(ALLOWED_CHARS, "Only letters, numbers, spaces, and ? are allowed")
     .refine((val) => !profanity.isProfane(val), {
       message: "Input contains inappropriate language",
     });
@@ -28,3 +30,10 @@ export function validateTopic(rawInput: string) {
     error: !result.success ? result.error.format() : null,
   };
 }
+
+// Export constants for use in components
+export const VALIDATION_RULES = {
+  MIN_LENGTH,
+  MAX_LENGTH,
+  ALLOWED_CHARS,
+};

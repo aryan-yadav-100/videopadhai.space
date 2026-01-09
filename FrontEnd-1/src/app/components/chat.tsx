@@ -72,11 +72,10 @@ export const Chat = ({ onChatActivate }: ChatProps) => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Origin: "https://www.videopadhai.space/",
-          },
+           },
           body: JSON.stringify({
-            topic: result.data,
-           
+            topic: message,
+            chatId:null,
           }),
         }
       );
@@ -86,8 +85,6 @@ export const Chat = ({ onChatActivate }: ChatProps) => {
       }
 
       const data = await response.json();
-      console.log("Backend response:", data);
-
       if (data.success) {
         setBackendIds({ userId: data.userId, chatId: data.chatId });
       }

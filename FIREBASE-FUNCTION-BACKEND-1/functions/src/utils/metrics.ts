@@ -5,13 +5,7 @@
  * to push metrics instead of having Prometheus scrape them.
  */
 
-<<<<<<< HEAD
-import { Registry, Counter, Histogram, Gauge, pushMetrics } from 'prom-client';
-import { logger } from './logger.js';
-
-=======
 import { Registry, Counter, Histogram, Gauge } from 'prom-client';
->>>>>>> 9be87b2 (feat: add AI API requests and update context IDs across backend and frontend)
 // Create a custom registry
 const register = new Registry();
 
@@ -164,37 +158,6 @@ export const gptTokensUsed = new Counter({
  * Push all metrics to Prometheus Push Gateway
  * Call this at the end of each request
  */
-<<<<<<< HEAD
-export const pushMetricsToGateway = async (): Promise<void> => {
-  const pushGatewayUrl = process.env.PROMETHEUS_PUSH_GATEWAY_URL || 'http://localhost:9091';
-  
-  try {
-    await pushMetrics({
-      pushgateway: pushGatewayUrl,
-      jobName: 'firebase_functions',
-      registers: [register],
-    });
-    
-    logger.logDebug(
-      { operation: 'metrics_push' },
-      'Metrics pushed to Prometheus Push Gateway',
-      { pushGatewayUrl }
-    );
-  } catch (error) {
-    // Don't fail the request if metrics push fails
-    logger.logWarning(
-      { operation: 'metrics_push', status: 'error' },
-      'Failed to push metrics to gateway',
-      { 
-        error: error instanceof Error ? error.message : 'Unknown error',
-        pushGatewayUrl 
-      }
-    );
-  }
-};
-=======
-
->>>>>>> 9be87b2 (feat: add AI API requests and update context IDs across backend and frontend)
 
 // ==================== HELPER FUNCTIONS ====================
 
