@@ -11,6 +11,8 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from pydantic import BaseModel
 import uvicorn
+from typing import Optional
+
 
 # Load environment variables and configure logging
 load_dotenv()
