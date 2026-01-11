@@ -52,7 +52,7 @@ app = FastAPI()
 class RenderRequest(BaseModel):
     userId: str
     chatId: str
-    traceId:str
+    traceId: Optional[str] = None
 
 class RenderResponse(BaseModel):
     success: bool

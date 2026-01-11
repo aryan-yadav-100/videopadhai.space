@@ -8,7 +8,7 @@ const ALLOWED_ORIGINS = [
   'http://localhost:4001',
   'videopadhai-space-git-main-aryan10os-projects.vercel.app',      // Replace with your actual domain
   'videopadhai-space-4og6l522h-aryan10os-projects.vercel.app',
-  'https://www.videopadhai.space/'
+  'https://www.videopadhai.space'
 ];
 
 /**
