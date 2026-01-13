@@ -1,6 +1,6 @@
 # services/manim_renderer.py
 # ===============================
-# LINUX/DOCKER COMPATIBLE VERSION
+# LINUX/DOCKER COMPATIBLE VERSION - FIXED
 # ===============================
 import os
 import logging
@@ -38,6 +38,10 @@ class ManimRenderer:
         """
         try:
             logger.info(f"Starting render process for scene: {scene_name} on {'Windows' if self.is_windows else 'Linux'}")
+            
+            # ✅ FIX: Create media directory before rendering
+            os.makedirs(self.media_dir, exist_ok=True)
+            logger.info(f"Created media directory: {self.media_dir}")
             
             # Step 1: Create manim_code.py in current directory
             self._create_manim_file(manim_code)
@@ -93,16 +97,17 @@ class ManimRenderer:
         try:
             logger.info("Executing Manim directly (Docker/system Python mode)")
             
-            # Build command arguments
+            # Build command arguments with ABSOLUTE path
             cmd_args = [
                 "python", "-m", "manim",
                 "manim_code.py",
                 scene_name,
-                "--media_dir=./media",
+                f"--media_dir={self.media_dir}",  # ✅ FIXED: Use absolute path
                 "--disable_caching"
             ]
             
             logger.info(f"Command: {' '.join(cmd_args)}")
+            logger.info(f"Media directory: {self.media_dir}")  # ✅ ADDED: Log the path
             
             # Execute command
             process = await asyncio.create_subprocess_exec(
@@ -147,8 +152,8 @@ class ManimRenderer:
             logger.info(f"Executing Manim with virtual environment: {self.venv_name}")
             
             if self.is_windows:
-                # Windows PowerShell approach (original)
-                shell_command = f"{self.venv_name}\\Scripts\\Activate.ps1; python -m manim manim_code.py {scene_name} --media_dir=./media --disable_caching"
+                # Windows PowerShell approach
+                shell_command = f"{self.venv_name}\\Scripts\\Activate.ps1; python -m manim manim_code.py {scene_name} --media_dir={self.media_dir} --disable_caching"  # ✅ FIXED: Use absolute path
                 process = await asyncio.create_subprocess_exec(
                     "powershell", "-Command", shell_command,
                     stdout=asyncio.subprocess.PIPE,
@@ -157,7 +162,7 @@ class ManimRenderer:
                 )
             else:
                 # Linux/Mac bash approach
-                shell_command = f"source {self.venv_name}/bin/activate && python -m manim manim_code.py {scene_name} --media_dir=./media --disable_caching"
+                shell_command = f"source {self.venv_name}/bin/activate && python -m manim manim_code.py {scene_name} --media_dir={self.media_dir} --disable_caching"  # ✅ FIXED: Use absolute path
                 process = await asyncio.create_subprocess_shell(
                     shell_command,
                     stdout=asyncio.subprocess.PIPE,
@@ -166,6 +171,7 @@ class ManimRenderer:
                 )
             
             logger.info(f"Command: {shell_command}")
+            logger.info(f"Media directory: {self.media_dir}")  # ✅ ADDED: Log the path
             
             stdout, stderr = await process.communicate()
             
