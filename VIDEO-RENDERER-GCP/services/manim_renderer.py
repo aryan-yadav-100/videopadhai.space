@@ -1,6 +1,6 @@
-# services/manim_renderer.py
 # ===============================
-# LINUX/DOCKER COMPATIBLE VERSION - FIXED
+# services/manim_renderer.py
+# FIXED VERSION - Full video upload, not partial files
 # ===============================
 import os
 import logging
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class ManimRenderer:
     def __init__(self, use_venv: bool = False, venv_name: str = "voiceover_env"):
-        self.use_venv = use_venv  # NEW: Option to use venv or not
+        self.use_venv = use_venv  # Option to use venv or not
         self.venv_name = venv_name
         self.work_dir = os.getcwd()  # Current working directory
         self.manim_file = os.path.join(self.work_dir, "manim_code.py")
@@ -39,7 +39,7 @@ class ManimRenderer:
         try:
             logger.info(f"Starting render process for scene: {scene_name} on {'Windows' if self.is_windows else 'Linux'}")
             
-            # ✅ FIX: Create media directory before rendering
+            # Create media directory before rendering
             os.makedirs(self.media_dir, exist_ok=True)
             logger.info(f"Created media directory: {self.media_dir}")
             
@@ -58,7 +58,6 @@ class ManimRenderer:
                 os.remove(self.manim_file)
                 logger.info("Cleaned up manim_code.py (error case)")
             raise
-        # NOTE: No finally block - cleanup must be called manually!
     
     def _create_manim_file(self, manim_code: str):
         """
@@ -102,12 +101,12 @@ class ManimRenderer:
                 "python", "-m", "manim",
                 "manim_code.py",
                 scene_name,
-                f"--media_dir={self.media_dir}",  # ✅ FIXED: Use absolute path
+                f"--media_dir={self.media_dir}",
                 "--disable_caching"
             ]
             
             logger.info(f"Command: {' '.join(cmd_args)}")
-            logger.info(f"Media directory: {self.media_dir}")  # ✅ ADDED: Log the path
+            logger.info(f"Media directory: {self.media_dir}")
             
             # Execute command
             process = await asyncio.create_subprocess_exec(
@@ -129,7 +128,7 @@ class ManimRenderer:
             
             logger.info("Manim rendering completed successfully")
             if stdout:
-                logger.info(f"Manim output: {stdout.decode()}")
+                logger.debug(f"Manim output: {stdout.decode()}")
             
             # Find the generated video file
             video_path = self._find_generated_video(scene_name)
@@ -137,7 +136,11 @@ class ManimRenderer:
             if not video_path:
                 raise Exception("Could not locate generated video file")
             
+            # Log video file size for verification
+            video_size = os.path.getsize(video_path)
             logger.info(f"Generated video found at: {video_path}")
+            logger.info(f"Video file size: {video_size} bytes ({video_size/1024/1024:.2f} MB)")
+            
             return video_path
             
         except Exception as e:
@@ -153,7 +156,7 @@ class ManimRenderer:
             
             if self.is_windows:
                 # Windows PowerShell approach
-                shell_command = f"{self.venv_name}\\Scripts\\Activate.ps1; python -m manim manim_code.py {scene_name} --media_dir={self.media_dir} --disable_caching"  # ✅ FIXED: Use absolute path
+                shell_command = f"{self.venv_name}\\Scripts\\Activate.ps1; python -m manim manim_code.py {scene_name} --media_dir={self.media_dir} --disable_caching"
                 process = await asyncio.create_subprocess_exec(
                     "powershell", "-Command", shell_command,
                     stdout=asyncio.subprocess.PIPE,
@@ -162,7 +165,7 @@ class ManimRenderer:
                 )
             else:
                 # Linux/Mac bash approach
-                shell_command = f"source {self.venv_name}/bin/activate && python -m manim manim_code.py {scene_name} --media_dir={self.media_dir} --disable_caching"  # ✅ FIXED: Use absolute path
+                shell_command = f"source {self.venv_name}/bin/activate && python -m manim manim_code.py {scene_name} --media_dir={self.media_dir} --disable_caching"
                 process = await asyncio.create_subprocess_shell(
                     shell_command,
                     stdout=asyncio.subprocess.PIPE,
@@ -171,7 +174,7 @@ class ManimRenderer:
                 )
             
             logger.info(f"Command: {shell_command}")
-            logger.info(f"Media directory: {self.media_dir}")  # ✅ ADDED: Log the path
+            logger.info(f"Media directory: {self.media_dir}")
             
             stdout, stderr = await process.communicate()
             
@@ -185,7 +188,7 @@ class ManimRenderer:
             
             logger.info("Manim rendering completed successfully")
             if stdout:
-                logger.info(f"Manim output: {stdout.decode()}")
+                logger.debug(f"Manim output: {stdout.decode()}")
             
             # Find the generated video file
             video_path = self._find_generated_video(scene_name)
@@ -193,7 +196,11 @@ class ManimRenderer:
             if not video_path:
                 raise Exception("Could not locate generated video file")
             
+            # Log video file size for verification
+            video_size = os.path.getsize(video_path)
             logger.info(f"Generated video found at: {video_path}")
+            logger.info(f"Video file size: {video_size} bytes ({video_size/1024/1024:.2f} MB)")
+            
             return video_path
             
         except Exception as e:
@@ -204,10 +211,10 @@ class ManimRenderer:
         """
         Search for the generated MP4 file in the media directory
         Cross-platform path handling
+        🔧 FIXED: Now excludes partial_movie_files to get the final combined video
         """
         try:
             # Search patterns for Manim output in our media directory
-            # Using os.path.join for cross-platform compatibility
             base_pattern = os.path.join(self.media_dir, "videos")
             
             search_patterns = [
@@ -219,22 +226,46 @@ class ManimRenderer:
             for pattern in search_patterns:
                 matches = glob.glob(pattern, recursive=True)
                 if matches:
-                    # Return the most recent file if multiple matches
-                    recent_file = max(matches, key=os.path.getctime)
-                    logger.info(f"Found video using pattern {pattern}: {recent_file}")
-                    return recent_file
+                    # 🔧 FIX: Filter out partial_movie_files directory
+                    non_partial_matches = [
+                        m for m in matches 
+                        if "partial_movie_files" not in m
+                    ]
+                    
+                    if non_partial_matches:
+                        # Return the most recent NON-PARTIAL file
+                        recent_file = max(non_partial_matches, key=os.path.getctime)
+                        logger.info(f"Found final video using pattern {pattern}: {recent_file}")
+                        return recent_file
             
-            # If no exact match, look for any MP4 files (fallback)
+            # If no exact match, look for any MP4 files but exclude partials
+            logger.info("Exact scene name match not found, searching for any final video...")
             fallback_pattern = os.path.join(base_pattern, "**", "*.mp4")
             matches = glob.glob(fallback_pattern, recursive=True)
             
             if matches:
-                # Return the most recent video file
-                recent_file = max(matches, key=os.path.getctime)
-                logger.warning(f"Using fallback video file: {recent_file}")
-                return recent_file
+                # 🔧 FIX: Filter out partial movie files
+                non_partial_matches = [
+                    m for m in matches 
+                    if "partial_movie_files" not in m
+                ]
+                
+                if non_partial_matches:
+                    # Return the LARGEST file (final combined video is always largest)
+                    largest_file = max(non_partial_matches, key=os.path.getsize)
+                    file_size = os.path.getsize(largest_file)
+                    logger.warning(f"Using largest non-partial video file: {largest_file} ({file_size/1024/1024:.2f} MB)")
+                    return largest_file
+                else:
+                    logger.error("Only partial movie files found, no final combined video available")
+                    # Log what was found for debugging
+                    logger.error(f"Partial files found: {matches[:5]}")  # Show first 5
+                    return None
             
             logger.error(f"No video files found in {self.media_dir}")
+            # List directory contents for debugging
+            if os.path.exists(base_pattern):
+                logger.error(f"Contents of {base_pattern}: {os.listdir(base_pattern)}")
             return None
             
         except Exception as e:
@@ -286,7 +317,6 @@ class ManimRenderer:
                 status["venv_exists"] = os.path.exists(venv_activation_path)
                 
                 try:
-                    # Windows: Use create_subprocess_exec with powershell
                     process = await asyncio.create_subprocess_exec(
                         "powershell", "-Command", test_command,
                         stdout=asyncio.subprocess.PIPE,
@@ -312,7 +342,6 @@ class ManimRenderer:
                 status["venv_exists"] = os.path.exists(venv_activation_path)
                 
                 try:
-                    # Linux: Use create_subprocess_shell with bash command
                     process = await asyncio.create_subprocess_shell(
                         test_command,
                         stdout=asyncio.subprocess.PIPE,
