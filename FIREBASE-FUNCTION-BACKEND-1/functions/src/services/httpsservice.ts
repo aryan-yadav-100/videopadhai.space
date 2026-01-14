@@ -21,7 +21,9 @@ function getBackend2Url(): string {
 }
 
 /**
- * Send HTTP POST request to Backend 2 (Python) with retry logic
+ * Send HTTP POST request to Backend 2 (Python) - Fire and Forget
+ * This triggers the render process but doesn't wait for completion.
+ * Backend 2 will update Firestore when rendering is complete.
  */
 export const sendToBackend2 = async (
   userId: string,
@@ -37,98 +39,77 @@ export const sendToBackend2 = async (
     traceId
   };
 
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    const startTime = Date.now();
+  const startTime = Date.now();
 
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10_000); // 10s timeout
-
-      const response = await fetch(BACKEND_2_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Trace-ID': traceId ?? 'unknown'
-        },
-        body: JSON.stringify(payload),
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-
+  try {
+    // Fire and forget - don't await the response
+    fetch(BACKEND_2_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Trace-ID': traceId ?? 'unknown'
+      },
+      body: JSON.stringify(payload)
+    }).catch(error => {
+      // Log connection errors but don't throw
+      // Backend 2 might be down, but we don't want to block Backend 1
       const durationMs = Date.now() - startTime;
-
-      if (response.ok) {
-        recordExternalApiCall(
-          'backend_2',
-          'post_workflow_complete',
-          'success',
-          durationMs / 1000
-        );
-
-        logger.logExternalApiCall(
-          'backend_2',
-          'post_workflow_complete',
-          { userId, chatId, operation: 'backend_2_request', traceId },
-          'success',
-          durationMs,
-          {
-            statusCode: response.status,
-            attempt,
-            url: BACKEND_2_URL
-          }
-        );
-
-        return; // success
-      }
-
-      throw new Error(`Backend 2 returned status ${response.status}`);
-
-    } catch (error) {
-      const durationMs = Date.now() - startTime;
-
-      if (attempt === 3) {
-        recordExternalApiCall(
-          'backend_2',
-          'post_workflow_complete',
-          'error',
-          durationMs / 1000
-        );
-      }
-
+      
       logger.logWarning(
         { userId, chatId, operation: 'backend_2_request', traceId },
-        `HTTP POST failed attempt ${attempt}: ${
-          error instanceof Error ? error.message : 'Unknown error'
-        }`,
+        `Failed to connect to Backend 2: ${error instanceof Error ? error.message : 'Unknown error'}`,
         {
-          attempt,
-          maxAttempts: 3,
           url: BACKEND_2_URL,
           durationMs
         }
       );
 
-      if (attempt === 3) {
-        const finalError = new Error(
-          `Failed to send request to Backend 2 after 3 attempts`
-        );
+      recordExternalApiCall(
+        'backend_2',
+        'post_workflow_trigger',
+        'error',
+        durationMs / 1000
+      );
+    });
 
-        logger.logError({
-          error: finalError,
-          context: { userId, chatId, operation: 'backend_2_request', traceId },
-          message: 'Backend 2 request failed after all retries',
-          additionalData: {
-            attempts: 3,
-            url: BACKEND_2_URL
-          }
-        });
-
-        throw finalError;
+    // Log that we triggered the request (not that it completed)
+    logger.logInfo(
+      { userId, chatId, operation: 'backend_2_request', traceId },
+      'Render request sent to Backend 2 (fire-and-forget)',
+      {
+        url: BACKEND_2_URL
       }
+    );
 
-      // retry delay
-      await new Promise(resolve => setTimeout(resolve, 5000));
-    }
+    recordExternalApiCall(
+      'backend_2',
+      'post_workflow_trigger',
+      'success',
+      (Date.now() - startTime) / 1000
+    );
+
+  } catch (error) {
+    // Only catch errors in setting up the request (not connection errors)
+    const durationMs = Date.now() - startTime;
+    
+    logger.logError({
+      error: error as Error,
+      context: { userId, chatId, operation: 'backend_2_request', traceId },
+      message: 'Failed to send request to Backend 2',
+      additionalData: {
+        url: BACKEND_2_URL,
+        durationMs
+      }
+    });
+
+    recordExternalApiCall(
+      'backend_2',
+      'post_workflow_trigger',
+      'error',
+      durationMs / 1000
+    );
+
+    // Don't throw - let Backend 1 continue its workflow
+    // The user will see the status update in Firestore when Backend 2 completes
   }
 };

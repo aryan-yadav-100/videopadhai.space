@@ -1,10 +1,10 @@
 # main.py
 # ===============================
-# SIMPLE FASTAPI HTTP SERVER FOR BACKEND-2
+# BACKEND 2 - NO RESPONSE PATTERN
+# Request stays open, container stays alive
 # ===============================
 import os
 import logging
-import asyncio
 import firebase_admin
 from firebase_admin import credentials
 from dotenv import load_dotenv
@@ -12,7 +12,6 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import uvicorn
 from typing import Optional
-
 
 # Load environment variables and configure logging
 load_dotenv()
@@ -56,42 +55,23 @@ class RenderRequest(BaseModel):
     chatId: str
     traceId: Optional[str] = None
 
-class RenderResponse(BaseModel):
-    success: bool
-    message: str
-
-async def background_render_task(user_id: str, chat_id: str, trace_id: Optional[str] = None):
-    """
-    Background task that handles the actual rendering process.
-    Logs errors but doesn't raise them since there's no HTTP response to return.
-    """
-    try:
-        logger.info(f"Starting background render for userId: {user_id}, chatId: {chat_id}, traceId: {trace_id}")
-        await webhook_handler.process_render_request(user_id, chat_id)
-        logger.info(f"Background render completed successfully for userId: {user_id}, chatId: {chat_id}")
-    except Exception as e:
-        logger.error(f"Background render failed for userId: {user_id}, chatId: {chat_id}, error: {str(e)}", exc_info=True)
-
 @app.post("/render")
 async def render_video(request: RenderRequest):
     """
-    Accepts render request and returns immediately.
-    The actual rendering happens in the background (fire-and-forget).
+    Process render and complete the work.
     """
+    logger.info(f"🎬 Received render request for userId: {request.userId}, chatId: {request.chatId}, traceId: {request.traceId}")
+    
     try:
-        logger.info(f"Received render request for userId: {request.userId}, chatId: {request.chatId}, traceId: {request.traceId}")
+        # Process the render - request stays open during this entire time
+        await webhook_handler.process_render_request(request.userId, request.chatId)
         
-        # Start rendering in background task (fire-and-forget)
-        asyncio.create_task(
-            background_render_task(request.userId, request.chatId, request.traceId)
-        )
-        
-        # Return immediately
-        return {"success": True, "message": "Render request accepted and processing"}
+        logger.info(f"✅ Render completed successfully for userId: {request.userId}, chatId: {request.chatId}")
         
     except Exception as e:
-        logger.error(f"Error accepting render request: {str(e)}", exc_info=True)
-        return {"success": False, "message": f"Failed to accept render request: {str(e)}"}
+        logger.error(f"❌ Render failed for userId: {request.userId}, chatId: {request.chatId}, error: {str(e)}", exc_info=True)
+    
+    # No return statement - FastAPI will return 200 OK with null body
 
 @app.get("/health")
 async def health_check():
