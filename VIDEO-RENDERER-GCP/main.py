@@ -60,19 +60,43 @@ class RenderResponse(BaseModel):
     success: bool
     message: str
 
+async def background_render_task(user_id: str, chat_id: str, trace_id: Optional[str] = None):
+    """
+    Background task that handles the actual rendering process.
+    Logs errors but doesn't raise them since there's no HTTP response to return.
+    """
+    try:
+        logger.info(f"Starting background render for userId: {user_id}, chatId: {chat_id}, traceId: {trace_id}")
+        await webhook_handler.process_render_request(user_id, chat_id)
+        logger.info(f"Background render completed successfully for userId: {user_id}, chatId: {chat_id}")
+    except Exception as e:
+        logger.error(f"Background render failed for userId: {user_id}, chatId: {chat_id}, error: {str(e)}", exc_info=True)
+
 @app.post("/render")
 async def render_video(request: RenderRequest):
+    """
+    Accepts render request and returns immediately.
+    The actual rendering happens in the background (fire-and-forget).
+    """
     try:
-        logger.info(f"Received render request for userId: {request.userId}, chatId: {request.chatId}")
+        logger.info(f"Received render request for userId: {request.userId}, chatId: {request.chatId}, traceId: {request.traceId}")
         
-        # Wait for rendering to complete (not fire-and-forget)
-        await webhook_handler.process_render_request(request.userId, request.chatId)
+        # Start rendering in background task (fire-and-forget)
+        asyncio.create_task(
+            background_render_task(request.userId, request.chatId, request.traceId)
+        )
         
-        return {"success": True, "message": "Render completed successfully"}
+        # Return immediately
+        return {"success": True, "message": "Render request accepted and processing"}
         
     except Exception as e:
-        logger.error(f"Error: {str(e)}")
-        return {"success": False, "message": f"Rendering failed: {str(e)}"}
+        logger.error(f"Error accepting render request: {str(e)}", exc_info=True)
+        return {"success": False, "message": f"Failed to accept render request: {str(e)}"}
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "service": "backend-2"}
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))
